@@ -1,0 +1,98 @@
+{
+    "Ciencias Matemáticas, Físicas, Químicas e Ingenierías": {
+        "FIS": [
+            "AYA",
+            "ESP",
+            "FPN",
+            "FAB",
+            "FCM",
+            "FYA"
+        ],
+        "MTM": [
+            "MTM"
+        ],
+        "PIN": [
+            "ICA",
+            "IBI",
+            "IEA",
+            "INA"
+        ],
+        "TIC": [
+            "INF",
+            "MNF",
+            "TCO"
+        ],
+        "EYT": [
+            "ENE",
+            "TRA"
+        ],
+        "CTQ": [
+            "QMC",
+            "IQM"
+        ],
+        "MAT": [
+            "MAT"
+        ]
+    },
+    "Ciencias de la Vida": {
+        "BIO": [
+            "CAN",
+            "ESN",
+            "DPT",
+            "FOS",
+            "IIT",
+            "BME"
+        ],
+        "BIF": [
+            "BIF",
+            "BCB",
+            "BGG",
+            "BTC"
+        ],
+        "CTM": [
+            "CTA",
+            "BDV",
+            "MAR",
+            "PLR"
+        ],
+        "CAA": [
+            "AGR",
+            "ALI",
+            "GYA"
+        ],
+        "MED": [
+            "MED"
+        ]
+    },
+    "Ciencias Sociales y Humanidades": {
+        "CSO": [
+            "COM",
+            "CPO",
+            "FEM",
+            "GEO",
+            "SOC"
+        ],
+        "DER": [
+            "DER"
+        ],
+        "ECO": [
+            "ECO"
+        ],
+        "EDU": [
+            "EDU"
+        ],
+        "FLA": [
+            "ART",
+            "FIL",
+            "LFL",
+            "LYL"
+        ],
+        "PHA": [
+            "PSI"
+        ],
+        "HA": [
+            "ARQ",
+            "HIS"
+        ]
+    }
+}
