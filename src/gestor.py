@@ -2,6 +2,8 @@ import pandas as pd
 from typing import List, Dict, Tuple, Callable
 from proyectos import Proyecto, ProyectoConcedido, ProyectoContrato
 import json
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
 
 
 class Gestor_Proyecto:
@@ -33,11 +35,11 @@ class Gestor_Proyecto:
             stats[clave]['solicitados'] += 1
             if p.concedido:
                 stats[clave]['concedidos'] += 1
-            if isinstance(p, ProyectoConcedido) and p.contratado_predoctoral:
+            if isinstance(p, ProyectoConcedido) and p.contratado_predoctoral: # verificamos que pertenezca a ProyectoConcedido
                 stats[clave]['contratados'] += 1
                 
         resultados = {}
-        for clave, data in stats.items():
+        for clave, data in stats.items():   # ojo! data es un diccionario anidado con los contadores de cada clave (dentro de stats)
             solic = data['solicitados']
             tasa_conc = (data['concedidos'] / solic * 100) if solic > 0 else 0.0
             tasa_cont = (data['contratados'] / solic * 100) if solic > 0 else 0.0
@@ -88,7 +90,14 @@ class Gestor_Proyecto:
 
     def tasas_exito_por_clasificacion(self, ruta_json: str, tipo_clasificacion: str) -> Dict[str, Dict[str, float]]:
         """4. Calcula la tasa de éxito agrupando por 'area' o 'macro_area'."""
+
         mapeo = self._cargar_mapeo_areas(ruta_json)
+        '''
+        {
+        "AYA": {"area": "FIS", "macro_area": "Ciencias Matemáticas..."},
+        "INF": {"area": "TIC", "macro_area": "Ciencias Matemáticas..."},
+        "MED": {"area": "MED", "macro_area": "Ciencias de la Vida"}
+        }'''
         
         # Le pasamos una función lambda más compleja que busca la subárea en el diccionario
         return self._agrupar_y_calcular_tasas(
@@ -129,6 +138,82 @@ class Gestor_Proyecto:
         df_resultado.to_excel(ruta_salida, index=False)
 
 
+    # Requisito 6
+    
+    def subproyectos_denegados_de_coordinados(self) -> List[str]:
+        """6. Devuelve referencias de subproyectos no financiados cuyo coordinador (M=1) sí fue financiado."""
+        # Paso 1: Agrupar los proyectos coordinados por su "raíz" compartida
+        grupos_coordinados = {}
+        for p in self.proyectos:
+            partes = p.referencia.split('-')
+            # Verificamos si tiene 3 partes y termina en 'C' (Coordinado)
+            if len(partes) == 3 and partes[2].startswith('C'):
+                # Ejemplo: PID2024-158711OB-C31
+                # partes[0] = 'PID2024', partes[1] = '158711OB', partes[2] = 'C31'
+                
+                # La "raíz" es todo menos el último número (PID2024-158711OB-C3)
+                raiz = f"{partes[0]}-{partes[1]}-{partes[2][:-1]}"
+                # El índice del subproyecto es el último número (1, 2, 3...)
+                sub_id = int(partes[2][-1]) 
+                
+                if raiz not in grupos_coordinados:
+                    grupos_coordinados[raiz] = {}
+                grupos_coordinados[raiz][sub_id] = p
+
+        # Paso 2: Analizar cada grupo buscando a los "huérfanos"
+        huerfanos = []
+        for raiz, subproyectos in grupos_coordinados.items():
+            # Verificamos si existe el coordinador (sub_id = 1) y si se lo concedieron
+            if 1 in subproyectos and subproyectos[1].concedido:
+                # Si el coordinador tiene éxito, miramos a sus "hermanos"
+                for sub_id, proyecto in subproyectos.items():
+                    if sub_id != 1 and not proyecto.concedido:
+                        huerfanos.append(proyecto.referencia)
+                        
+        return huerfanos
+
+
+    def analisis_orientada_vs_basica(self) -> Dict[str, Dict]:
+        """7. Calcula el reparto de dinero y tasas para Orientados (O) vs No Orientados (N)."""
+        def extraer_tipo(p):
+            # Ref: PID2024-123456XY-C31 -> partes[1] es '123456XY'. La letra X está en el índice 6.
+            try:
+                letra_X = p.referencia.split('-')[1][6]
+                return "Investigación Orientada (Aplicada)" if letra_X == 'O' else "Investigación No Orientada (Básica)"
+            except (IndexError, TypeError):
+                return "Desconocida"
+
+        # ¡Usamos nuestro motor base para sacar las tasas mágicamente!
+        resultados = self._agrupar_y_calcular_tasas(extraer_tipo)
+
+        # Ahora añadimos manualmente el cálculo del dinero repartido
+        for clave in resultados:
+            resultados[clave]['dinero_repartido'] = 0.0
+
+        for p in self.proyectos:
+            if isinstance(p, ProyectoConcedido):
+                tipo = extraer_tipo(p)
+                if tipo in resultados:
+                    resultados[tipo]['dinero_repartido'] += p.presupuesto
+                    
+        return resultados
+
+
+    def analisis_individual_vs_coordinado(self) -> Dict[str, Dict[str, float]]:
+        """8. Compara la tasa de éxito entre proyectos Individuales y Coordinados."""
+        def extraer_modalidad(p):
+            # Ref: PID2024-123456XY-I00 -> la última parte empieza por 'I'
+            try:
+                sufijo = p.referencia.split('-')[2]
+                return "Individual" if sufijo.startswith('I') else "Coordinado"
+            except IndexError:
+                return "Desconocida"
+                
+        # Una vez más, el motor base hace todo el trabajo pesado en una sola línea
+        return self._agrupar_y_calcular_tasas(extraer_modalidad)
+    
+
+
 
   
 class Gestor_ProyectoConcedido:
@@ -140,6 +225,8 @@ class Gestor_ProyectoConcedido:
         self.proyectos.append(proyecto)
 
 
+
+
 class Gestor_ProyectoContrato:
     """Contenedor exclusivo para proyectos con contrato predoctoral."""
     def __init__(self):
@@ -147,3 +234,78 @@ class Gestor_ProyectoContrato:
         
     def agregar(self, proyecto: ProyectoContrato) -> None:
         self.proyectos.append(proyecto)
+
+
+    def generar_nubes_palabras(self, ruta_json_areas: str) -> None:
+        """5. Genera nubes de palabras por macro área eliminando stopwords."""
+        # 1. Cargar el diccionario para saber a qué macro área pertenece cada proyecto
+        with open(ruta_json_areas, 'r', encoding='utf-8') as f:
+            jerarquia = json.load(f)
+            
+        mapeo_macro = {}
+        for macro, areas in jerarquia.items():
+            for area, subareas in areas.items():
+                for sub in subareas:
+                    mapeo_macro[sub] = macro
+
+        # 2. Cajas de texto vacías para ir acumulando los títulos
+        textos_macro = {
+            "Ciencias Matemáticas, Físicas, Químicas e Ingenierías": "",
+            "Ciencias de la Vida": "",
+            "Ciencias Sociales y Humanidades": ""
+        }
+
+        # 3. Recorremos los proyectos y metemos sus títulos en su caja correspondiente
+        for p in self.proyectos:
+            titulo = p.titulo_proyecto # Acumulamos el título
+            macro = mapeo_macro.get(p.area, "Desconocida")
+            
+            if macro in textos_macro:
+                textos_macro[macro] += titulo + " " # Espacio al final para separar palabras
+
+        # 4. Diccionario de "Stopwords" (palabras vacías que ensucian la gráfica)
+        # 4. Diccionario de "Stopwords" (AMPLIADO Y MEJORADO)
+        stopwords_es = {
+            "el", "la", "los", "las", "un", "una", "unos", "unas", "y", "e", "ni", "o", "u",
+            "de", "del", "a", "al", "ante", "bajo", "cabe", "con", "contra", "desde", "en", "entre",
+            "hacia", "hasta", "para", "por", "según", "sin", "sobre", "tras", "que", "como",
+            "su", "sus", "se", "es", "son", "lo", "no", 
+            "estudio", "análisis", "analisis", "desarrollo", "sistema", "sistemas", "uso", 
+            "efecto", "efectos", "basado", "basada", "basados", "basadas", "mediante", "impacto", 
+            "nuevos", "nuevas", "nuevo", "nueva", "evaluación", "evaluacion", "papel", "rol", 
+            "aplicación", "aplicacion", "aplicaciones", "diseño", "proyecto", "proyectos",
+            "investigación", "investigacion", "modelo", "modelos", "proceso", "procesos",
+            "estrategia", "estrategias", "dinamica", "dinámica", "mecanismo", "mecanismos",
+            "avanzada", "avanzado", "avanzadas", "avanzados", "herramienta", "herramientas",
+            "traves", "través", "frente", "partir", "durante", "contexto", "perspectiva"
+        }
+
+        # 5. Función interna que dibuja la imagen
+        def crear_nube(texto: str, macro_nombre: str):
+            if not texto.strip(): return # Si no hay texto, no hacemos nada
+                
+            # Configuramos el "lienzo"
+            wordcloud = WordCloud(
+                width=800, height=400, 
+                background_color='white', 
+                stopwords=stopwords_es,
+                colormap='viridis', # Un mapa de colores profesional
+                max_words=80 # Máximo de palabras a mostrar
+            ).generate(texto)
+            
+            # Dibujamos usando matplotlib
+            plt.figure(figsize=(10, 5))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.title(f"Palabras Clave: {macro_nombre}", fontsize=14, pad=20)
+            plt.axis('off') # Quitamos los ejes X e Y
+            
+            # Limpiamos el nombre para guardarlo como archivo .png
+            nombre_archivo = f"nube_{macro_nombre[:10].replace(' ', '_').replace(',', '')}.png"
+            plt.savefig(nombre_archivo, bbox_inches='tight')
+            print(f"✅ Imagen guardada: {nombre_archivo}")
+            plt.close() # Importante: cerrar para no saturar la memoria RAM
+
+        # 6. Ejecutamos la generación para cada macro área
+        print("\nGenerando nubes de palabras (esto puede tardar unos segundos)...")
+        for macro, texto in textos_macro.items():
+            crear_nube(texto, macro)

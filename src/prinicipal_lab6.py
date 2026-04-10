@@ -63,5 +63,43 @@ def main():
     print("\n" + "=" * 60)
     print("¡Análisis del Laboratorio 6 completado con éxito!")
 
+
+    # --- REQUISITO 5: Nubes de Palabras ---
+    print("\n--- 5. NUBES DE PALABRAS (Títulos de Proyectos) ---")
+    if os.path.exists(ruta_json):
+        # ¡Ojo! Lo llamamos sobre gestor_contratos, no sobre gestor_todos
+        gestor_contratos.generar_nubes_palabras(ruta_json)
+    else:
+        print(f"⚠️ Error: No se encontró '{ruta_json}'.")
+
+
+    # --- REQUISITO 6: Subproyectos huérfanos ---
+    print("\n--- 6. SUBPROYECTOS DENEGADOS (CON COORDINADOR FINANCIADO) ---")
+    huerfanos = gestor_todos.subproyectos_denegados_de_coordinados()
+    print(f"Se han encontrado {len(huerfanos)} subproyectos en esta situación.")
+    if huerfanos:
+        # Mostramos solo los 5 primeros para no saturar la pantalla
+        print("Ejemplos de referencias:", ", ".join(huerfanos[:5]) + ("..." if len(huerfanos) > 5 else ""))
+
+    # --- REQUISITO 7: Orientada vs Básica ---
+    print("\n--- 7. INVESTIGACIÓN BÁSICA VS APLICADA ---")
+    stats_tipo = gestor_todos.analisis_orientada_vs_basica()
+    for tipo, datos in stats_tipo.items():
+        if tipo != "Desconocida":
+            dinero = datos.get('dinero_repartido', 0)
+            print(f"🔬 {tipo}:")
+            print(f"    Solicitados: {datos['solicitados']}")
+            print(f"    Tasa de Éxito: {datos['tasa_concedidos']:.2f}%")
+            print(f"    Dinero Repartido: {dinero:,.2f} €")
+            
+    # --- REQUISITO 8: Individual vs Coordinado ---
+    print("\n--- 8. INDIVIDUAL VS COORDINADO ---")
+    stats_mod = gestor_todos.analisis_individual_vs_coordinado()
+    for mod, datos in stats_mod.items():
+        if mod != "Desconocida":
+            print(f"📊 {mod}:")
+            print(f"    Solicitados: {datos['solicitados']}")
+            print(f"    Tasa de Éxito: {datos['tasa_concedidos']:.2f}%")
+
 if __name__ == '__main__':
     main()
